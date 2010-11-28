@@ -1,0 +1,80 @@
+Simplicissimus 0.1 released!
+
+With pleasure I announce the release of Simplicissimus 0.1,
+the essential blogging system. In a world of content
+management systems with bells and whistles, it seeks
+simplicity, where less is more.
+
+<i>Overview</i>
+
+Simplicissimus is a bare-bones blogging system that uses
+plain text files to store blog entries. You can also add
+additional pages in PHP or HTML.  
+
+<i>Blog entries</i>
+
+Blog entries are simple text files, stored in the file
+hierarchy "entires/$year/$month/$day/" within the main
+folder of Simplicissimus. You can create and edit your
+files directly on the server, or update them through
+FTP or SCP. Only entries with the ending <i>.txt</i> will be
+shown. Use other endings for storing your drafts.
+
+<i>Separate pages</i>
+
+Store separate pages as <i>.php</i> files in the folder "pages".
+To promote a tidy file hierarchy, each extra page has a
+name, is stored with all its additional content in "pages/$name",
+and can be accessed through the file "pages/$name/$name.php".
+These pages will be displayed within the Simplicissimus framework,
+and automatically added to the blog menu.
+
+<i>Settings</i>
+
+The following parameters are available for easy modification
+at the beginning of the Simplicissimus file: blog title,
+sub-title, entries per page, theme name.
+
+<i>Content structure</i>
+
+Description of content and appearance is neatly separated,
+and can be modified through CSS. Simplicissimus automatically
+adds div tags to blog entries, working by paragraphs that are
+separated by a blank line. The first paragraph is regarded as
+the title, the second as the lead-in, and the following ones
+as the remaining paragraphs. The date is automatically added
+to blog entries. Note that HTML elements and tags can be used.
+
+<i>Themes</i>
+
+A theme is stored in "themes/$themename", and must provide the
+file "themes/$themename/style.css".
+
+<i>Technical requirements</i>
+
+Requirements are very low: PHP4, chmod 755 for directories,
+and chmod 544 for files. Theming is achieved through CSS
+(optional); the default theme only requires a rudimentary
+CSS2 support (works even with IE6).
+
+<i>Other features</i>
+
+The following features are out of scope for Simplicissimus:
+user accounts; content management through browser; reader
+comments; search; tags; syndication. The three latter though
+can be implemented as pages, if necessary.
+
+That's all there is, nothing more, and nothing less.
+Other features than these will hardly be pursued, besides
+reader commenting perhaps and syndication.
+
+By the way, I do realize that the wheel is tired of being
+reinvented, but as a matter of fact after quite some search
+I didn't find a blogging system that met my needs.
+
+I hope you enjoy this software! If you have any suggestions,
+comments, or ideas about the software, feel free to send me
+an email. I'd be happy to hear from you.
+
+Cheers, Benjamin.
+
