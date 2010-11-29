@@ -1,5 +1,14 @@
 <?php
 
+/* To Do
+
+   - investigate 'foreach' problem in directory crawler
+   - review corner case handling
+   - improve html print format for getting nicer html code
+   - blog entry files with alphanumeric filenames
+
+*/
+
 /* Copyright (c) 2010, Benjamin Bittner; All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -28,73 +37,82 @@ POSSIBILITY OF SUCH DAMAGE. */
 
 $title = "Simplicissimus";
 $subtitle = "The essential blogging system.";
-$entries_per_page = 5;
+$entriesPerPage = 10;
 $theme = "earthrise";
 
 /******************************************************************** PARSE URL REQUEST */
 
-$blogpage = 1;
-$show_next_page = FALSE;
-$blogentry = "";
-$namedpage = "";
+function getUrlParameters()
+{
+  /* default values */
+  $blogpage = 1; // page number
+  $namedpage = NULL; // "name"
+  $blogentry = NULL; // array($year, $month, $day, $id)
 
-if (count($_GET) == 1) {
-
-  $valid_parameters = array("blogpage", "blogentry", "namedpage");
-  foreach ($_GET as $key => $value)
+  /* only 1 parameter is allowed */
+  if (count($_GET) == 1)
   {
-    /* check parameter name */
-    if (!in_array($key, $valid_parameters))
-      break;
+    /* sanitize and validate parameter key */
+    $parameter_key = array_keys($_GET)[0];
+    $parameter_key = preg_replace("/[^a-z]/", "", $parameter_key);
+    $valid_parameters = array("blogpage", "blogentry", "namedpage");
 
-    /* check value: blogpage */
-    elseif ($key == "blogpage") {
-      if (is_int($value) and ($value > 0))
-        $blogpage = (int)$value;
-    }
+    if (in_array($parameter_key, $valid_parameters))
+    {
+      /* check value: blog page */
+      if ($parameter_key == "blogpage")
+      {
+        $value = preg_replace("/[^0-9]/", "", $_GET[$parameter_key]);
+        if ($value > 0)
+          $blogpage = (int)$value;
+      }
 
-    /* check value: blogentry */
-    elseif ($key == "blogentry") {
-      // format: YYYYMMDD + ID
-      if (is_numeric($value) and (strlen($value) > 8)) {
+      /* check value: blog entry */
+      elseif ($parameter_key == "blogentry")
+      {
+        // format: YYYYMMDD + ID
+        $value = preg_replace("/[^0-9]/", "", $_GET[$parameter_key]);
+        if (strlen($value) > 8)
+        {
+          $year = substr($value,0,4);
+          $month = substr($value,4,2);
+          $day = substr($value,6,2);
+          $id = substr($value,8);
 
-        $year = substr($value,0,4);
-        $month = substr($value,4,2);
-        $day = substr($value,6,2);
-        $id = substr($value,8);
+          if (file_exists("entries/$year/$month/$day/$id.txt"))
+            $blogentry = array("year" => $year,
+                               "month" => $month,
+                               "day" => $day,
+                               "id" => $id);
+        }
+      }
 
-        $blogentry = "entries/$year/$month/$day/$id.txt";
-        if (!file_exists($blogentry))
-          $blogentry = "";
+      /* check value: named page */
+      elseif ($parameter_key == "namedpage")
+      {
+        $value = preg_replace("/[^a-zA-Z0-9_]/", "", $_GET[$parameter_key]);
+        $namedpage = $namedpage;
+        if (!file_exists("pages/$namedpage/$namedpage.php"))
+          $namedpage = NULL;
       }
     }
+  }
 
-    /* check value: namedpage */
-    elseif ($key == "namedpage") {
-      $nVal = preg_replace("/[^a-zA-Z0-9_]/", "", $value);
-      $namedpage = "pages/$nVal/$nVal.php";
-      if (!file_exists($namedpage))
-        $namedpage = "";
-      else
-        $namedpage = $nVal;
-    }
-
-    /* fallback option */
-    else {
-      $blogpage = 1;
-      $show_next_page = FALSE;
-      $blogentry = "";
-      $namedpage = "";
-      break;
-    }
-  } 
+  return array("blogpage" => $blogpage,
+               "namedpage" => $namedpage,
+               "blogentry" => $blogentry);
 }
 
 
 /************************************************** RENDERING FUNCTION: SHOW BLOG ENTRY */
 
-function showEntry ($year, $month, $day, $id, $hide_paragraphs)
+function showEntry ($blogentry, $hide_paragraphs)
 {
+  $year = $blogentry["year"];
+  $month = $blogentry["month"];
+  $day = $blogentry["day"];
+  $id = $blogentry["id"];
+
   echo "<div class=\"entry\">\n";
   $file = fopen("entries/$year/$month/$day/$id.txt", "r");
 
@@ -162,76 +180,81 @@ function showEntry ($year, $month, $day, $id, $hide_paragraphs)
 
 /**************************************************** RENDERING FUNCTION: BLOG BROWSING */
 
-function myscandir($folder) {
+function scanDirectory($folder, $onlyNumericDirectories) {
   $dh  = opendir($folder);
   while (false !== ($filename = readdir($dh))) {
+      if ($filename == "..")
+        continue;
+      if ($filename == ".")
+        continue;
+      if ($onlyNumericDirectories and preg_match ('/[^0-9]/', $filename))
+        continue;
+      if ($onlyNumericDirectories and !is_dir($filename))
+        continue;
       $files[] = $filename;
   }
   rsort($files);
+  closedir($dh);
   return $files;
 }
 
 function showOverview ($blogpage)
 {
-  $num_entries_counted = 0;
-  $num_entries_printed = 0;
+  $numEntriesCounted = 0;
+  $numEntriesPrinted = 0;
 
   /* YEARS */
-  $array_years = myscandir("entries/");
-  for ($i = 0; $i < count($array_years); $i++)
+  $arrayYears = scanDirectory("entries/",TRUE);
+  for ($i = 0; $i < count($arrayYears); $i++)
   {
-    $current_year = (int)$array_years[$i];
-    if (!is_int($current_year) or !is_dir("entries/$current_year"))
-      continue;
+    $currentYear = $arrayYears[$i];
+    $yearPath = "entries/$currentYear/";
 
     /* MONTHS */
-    $array_months = myscandir("entries/$current_year/");
-    for ($j = 0; $j < count($array_months); $j++)
+    $arrayMonths = scanDirectory($yearPath,TRUE);
+    for ($j = 0; $j < count($arrayMonths); $j++)
     {
-      $current_month = $array_months[$j];
-      if (!is_numeric($current_month) or !is_dir("entries/$current_year/$current_month"))
-        continue;
+      $currentMonth = $arrayMonths[$j];
+      $monthPath = $yearPath . "$currentMonth/";
 
       /* DAYS */
-      $array_days = myscandir("entries/$current_year/$current_month/");
-      for ($k = 0; $k < count($array_days); $k++)
+      $arrayDays = scanDirectory($monthPath,TRUE);
+      for ($k = 0; $k < count($arrayDays); $k++)
       {
-        $current_day = $array_days[$k];
-        if (!is_numeric($current_day) or !is_dir("entries/$current_year/$current_month/$current_day"))
-          continue;
+        $currentDay = $arrayDays[$k];
+        $dayPath = $monthPath . "$currentDay/";
 
         /* ENTRIES */
-        $array_entries = myscandir("entries/$current_year/$current_month/$current_day/");
-        for ($l = 0; $l < count($array_entries); $l++)
+        $arrayEntries = scanDirectory($dayPath,FALSE);
+        for ($l = 0; $l < count($arrayEntries); $l++)
         {
-          $current_entry = $array_entries[$l];
+          $currentEntry = $arrayEntries[$l];
 
-          if (is_dir("entries/$current_year/$current_month/$current_day/$current_entry"))
+          if (is_dir($dayPath . $currentEntry))
             continue;
 
-          preg_match("/\.([^\.]+)$/", $current_entry, $matches);
+          preg_match("/\.([^\.]+)$/", $currentEntry, $matches);
           if ($matches[1] != "txt")
             continue;
 
-          if ($num_entries_counted < (($blogpage - 1) * $entries_per_page)) {
-            $num_entries_counted += 1;
+          if ($numEntriesCounted < (($blogpage - 1) * $entriesPerPage)) {
+            $numEntriesCounted += 1;
             continue;
           }
 
-          showEntry($current_year, $current_month, $current_day, substr($current_entry,0,-4), TRUE);
-          $num_entries_printed += 1;
-          if ($num_entries_printed >= $entries_per_page)
-            return;
+          showEntry($currentYear, $currentMonth, $currentDay, substr($currentEntry,0,-4), TRUE);
+          $numEntriesPrinted += 1;
+          if ($numEntriesPrinted >= $entriesPerPage)
+            return TRUE;
         }
       }
     }
   }
 
-  if ($num_entries_printed >= $entries_per_page)
-    $show_next_page = TRUE;
+  if ($numEntriesPrinted == 0)
+    echo "[No blog entries are posted.]";
 
-  if ($num_entries_printed == 0)
-    echo "[no content found]";
+  return FALSE;
 }
 
 /************************************************************* RENDERING FUNCTION: PAGE */
@@ -248,14 +271,12 @@ function showPage ($pagename)
 
 /******************************************************************* START RENDERING */ ?>
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
-"http://www.w3.org/TR/html4/strict.dtd">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 
 <html>
   <head>
     <title><?php echo $title ?></title>
-    <link rel="stylesheet" type="text/css"
-          href="themes/<?php echo $theme ?>/style.css" />
+    <link rel="stylesheet" type="text/css" href="themes/<?php echo $theme ?>/style.css" />
   </head>
   <body><div id="container">
 
@@ -264,10 +285,10 @@ function showPage ($pagename)
     <div id="menu">
       <span><a href="index.php?blogpage=1">blog</a></span>
       <?php
-      $array_pages = myscandir("pages/");
-      foreach ($array_pages as $cur_file) {
-        if (is_dir("pages/$cur_file") && file_exists("pages/$cur_file/$cur_file.php"))
-          echo "<span>|</span><span><a href=\"index.php?namedpage=$cur_file\">$cur_file</a></span>";
+      $arrayPages = scanDirectory("pages/",FALSE);
+      foreach ($arrayPages as $curFile) {
+        if (is_dir("pages/$curFile") && file_exists("pages/$curFile/$curFile.php"))
+          echo "<span>|</span><span><a href=\"index.php?namedpage=$curFile\">$curFile</a></span>";
       }?>
     </div>
 
@@ -288,25 +309,31 @@ function showPage ($pagename)
       <div class="content">
         <?php
 
-        if ($namedpage)
-          showPage($namedpage);
-        elseif ($blogentry)
-          showEntry($year, $month, $day, $id, FALSE);
+        $urlParameters = getUrlParameters();
+        $showNextPageLink = FALSE;
+
+        if ($urlParameters["namedpage"])
+          showPage($urlParameters["namedpage"]);
+        elseif ($urlParameters["blogentry"])
+          showEntry($urlParameters["blogentry"], FALSE);
         else
-          showOverview($blogpage);
+          $showNextPageLink = showOverview($urlParameters["blogpage"]);
 
         ?>
       </div>
 
       <div class="pagelink">
         <?php
-        if ((!$blogentry & !$namedpage) and (($blogpage > 1) | $show_next_page)) {
-          if ($blogpage > 1)
-            echo "<a href=\"index.php?blogpage=".($blogpage - 1)."\">&lt;&lt;</a>";
-          echo "page ".$blogpage;
-          if ($show_next_page)
-            echo " <a href=\"index.php?blogpage=".($blogpage + 1)."\">&gt;&gt</a>";
-        }
+          if (!$urlParameters["blogentry"] and
+              !$urlParameters["namedpage"] and
+              (($blogpage > 1) | $showNextPage))
+          {
+            if ($blogpage > 1)
+              echo "<a href=\"index.php?blogpage=".($blogpage - 1)."\">&lt;&lt;</a>";
+            echo "page ".$blogpage;
+            if ($showNextPageLink)
+              echo " <a href=\"index.php?blogpage=".($blogpage + 1)."\">&gt;&gt</a>";
+          }
         ?>
       </div>
 
